@@ -2,7 +2,6 @@
 
 #pragma once
 
-
 /* image data */
 typedef struct {
    unsigned short width;    /* width      */
@@ -12,9 +11,9 @@ typedef struct {
    unsigned char *channel_G;        /* channel g  */
    unsigned char *channel_R;        /* channel r  */
    unsigned char num_channels;     /* number channel */
-} image_data;
+} sgi_image_data;
 
 
 /* đọc tệp IRIS */
-image_data decode_iris( const char *sfile );
-
+sgi_image_data decode_sgi( const char *sfile );
+void encode_sgi( char *tenTep, sgi_image_data *image_data );

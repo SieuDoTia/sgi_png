@@ -24,8 +24,6 @@
 #include "SGI.h"
 #include "PNG.h"
 
-#define kPNG   1
-#define kSGI   2
 
 #define kMAGIC_NUMBER_SGI 0x01da
 
@@ -80,10 +78,6 @@ typedef struct {
 } sgi_chunk_data;
 
 
-
-void luuAnhKongNen( char *tenTep, image_data *anh, unsigned char kieuDuLieu, unsigned short thoiGianKetXuat );
-
-void luuAnhRLE( char *tenTep, image_data *anh, unsigned char kieuDuLieu, unsigned short thoiGianKetXuat );
 
 #pragma mark ---- Read Attributes
 sgi_attributes readAttributes( FILE *sgi_fp ) {
@@ -294,7 +288,7 @@ void copyBufferUshort( unsigned short *destination, unsigned short *ushortSource
 
 #pragma mark ---- No Compression
 /* compression no */
-void read_data_compression_no__scanline( FILE *sgi_fp, sgi_attributes *attributes, image_data *image_data ) {
+void read_data_compression_no__scanline( FILE *sgi_fp, sgi_attributes *attributes, sgi_image_data *image_data ) {
   
    unsigned char channel_data_type = attributes->data_type;
 
@@ -332,7 +326,7 @@ void read_data_compression_no__scanline( FILE *sgi_fp, sgi_attributes *attribute
 }
 
 #pragma mark ---- RLE Compression
-void read_data_compression_rle__scanline( FILE *sgi_fp, sgi_chunk_data *chunk_data, sgi_attributes *attributes, image_data *image_data ) {
+void read_data_compression_rle__scanline( FILE *sgi_fp, sgi_chunk_data *chunk_data, sgi_attributes *attributes, sgi_image_data *image_data ) {
 
    unsigned int num_columns = attributes->width;
   
@@ -397,19 +391,19 @@ void read_data_compression_rle__scanline( FILE *sgi_fp, sgi_chunk_data *chunk_da
 }
 
 #pragma mark ---- Decode SGI
-image_data decode_sgi( const char *sfile ) {
+sgi_image_data decode_sgi( const char *sfile ) {
 
    FILE *sgi_fp;
-   image_data duLieuAnh_SGI;
-   duLieuAnh_SGI.width = 0;
-   duLieuAnh_SGI.height = 0;
+   sgi_image_data image_data;
+   image_data.width = 0;
+   image_data.height = 0;
    
 //   printf( "decode_sgi: TenTep %s\n", sfile );
-   sgi_fp = fopen(sfile, "rb");
+   sgi_fp = fopen( sfile, "rb" );
     
    if (!sgi_fp) {
       printf("%-15.15s: Error open exr file %s\n","read_exr",sfile);
-      return duLieuAnh_SGI;
+      return image_data;
    }
     
    // ---- check magic number/file signature
@@ -418,7 +412,7 @@ image_data decode_sgi( const char *sfile ) {
    if( magicNumber != kMAGIC_NUMBER_SGI ) {
       printf( "%-15.15s: failed to read magic number expected 0x%08x read 0x%08x\n","read_exr", kMAGIC_NUMBER_SGI, magicNumber );
       printf( "%s is not a valid EXR file", sfile);
-      return duLieuAnh_SGI;
+      return image_data;
    }
 
    // ---- read EXR attritubes - 108 byte
@@ -436,42 +430,42 @@ image_data decode_sgi( const char *sfile ) {
    
    if( attributes.color_map == SGI_COLORMAP_COLORMAP ) {
       printf( "Only color map in SGI file. No image data\n");
-      return duLieuAnh_SGI;
+      return image_data;
    }
 
 
    // ---- check compression
    if( attributes.compression > SGI_COMPRESSION_RLE ) {
       printf( "Only support NO, RLE compression in SGI file\n");
-      return duLieuAnh_SGI;
+      return image_data;
    }
    
-   duLieuAnh_SGI.width = attributes.width;
-   duLieuAnh_SGI.height = attributes.height;
-   duLieuAnh_SGI.num_channels = attributes.num_channels;
+   image_data.width = attributes.width;
+   image_data.height = attributes.height;
+   image_data.num_channels = attributes.num_channels;
    
    // ---- create buffers for image data
    unsigned int beDaiDem = attributes.width*attributes.height * sizeof( unsigned short );
 //   printf( " beDaiDem %d\n", beDaiDem );
    
-   duLieuAnh_SGI.channel_B = malloc( beDaiDem );
-   duLieuAnh_SGI.channel_G = malloc( beDaiDem );
-   duLieuAnh_SGI.channel_R = malloc( beDaiDem );
+   image_data.channel_B = malloc( beDaiDem );
+   image_data.channel_G = malloc( beDaiDem );
+   image_data.channel_R = malloc( beDaiDem );
    
-   if( (duLieuAnh_SGI.channel_R == NULL ) || (duLieuAnh_SGI.channel_G == NULL) || (duLieuAnh_SGI.channel_B == NULL) ) {
+   if( (image_data.channel_R == NULL ) || (image_data.channel_G == NULL) || (image_data.channel_B == NULL) ) {
       printf( "Problem create channel R, G, B for SGI image\n" );
       exit(0);
    }
 
    if( attributes.num_channels == 4 ) {
-      duLieuAnh_SGI.channel_A = malloc( beDaiDem );
-      if( duLieuAnh_SGI.channel_A == NULL ) {
+      image_data.channel_A = malloc( beDaiDem );
+      if( image_data.channel_A == NULL ) {
          printf( "Problem create channel A for SGI image\n" );
          exit(0);
       }
    }
    else
-      duLieuAnh_SGI.channel_A = NULL;
+      image_data.channel_A = NULL;
    
 
    
@@ -484,19 +478,19 @@ image_data decode_sgi( const char *sfile ) {
       printf( " number chunks: %d\n", chunk_data.num_chunks );
 
       // ---- read file data
-     read_data_compression_rle__scanline( sgi_fp, &chunk_data, &attributes, &duLieuAnh_SGI );
+     read_data_compression_rle__scanline( sgi_fp, &chunk_data, &attributes, &image_data );
       
       // ---- free memory
       free( chunk_data.chunk_table );
    }
    else {
    // ---- read file data
-      read_data_compression_no__scanline( sgi_fp, &attributes, &duLieuAnh_SGI );
+      read_data_compression_no__scanline( sgi_fp, &attributes, &image_data );
    }
 
    fclose( sgi_fp );
 
-   return duLieuAnh_SGI;
+   return image_data;
 }
 
 // ===================================
@@ -523,12 +517,12 @@ void tenAnh_RGBO( char *tenAnhGoc, char *tenAnhPNG ) {
 }
 
 
-#pragma mark ---- Lưư Ảnh SGI
+#pragma mark ---- Write SGI
 void writeAttributes( FILE *sgi_fp, sgi_attributes *attributes );
-void write_image_data( FILE *sgi_fp, sgi_attributes *attributes, image_data *anh );
+void write_image_data( FILE *sgi_fp, sgi_attributes *attributes, sgi_image_data *anh );
 
-/* Lưu Ảnh ZIP */
-void encode_sgi( char *tenTep, image_data *anh ) {
+
+void encode_sgi( char *tenTep, sgi_image_data *image_data ) {
    
    // ---- attributes for file
    sgi_attributes attributes;
@@ -563,8 +557,8 @@ void encode_sgi( char *tenTep, image_data *anh ) {
    attributes.dimension = 3;  // 3  for RGB
 
    // ---- size
-   attributes.width = (unsigned short)anh->width;
-   attributes.height = (unsigned short)anh->height;
+   attributes.width = (unsigned short)image_data->width;
+   attributes.height = (unsigned short)image_data->height;
    
    // ---- color map
    attributes.color_map = SGI_COLORMAP_NO;   // normal
@@ -576,7 +570,7 @@ void encode_sgi( char *tenTep, image_data *anh ) {
    attributes.pixel_max = 0xff;
 
    // ---- number channel
-   attributes.num_channels = anh->num_channels;
+   attributes.num_channels = image_data->num_channels;
 //   printf( "%d %d %d\n", attributes.width, attributes.height, attributes.num_channels );
    
    FILE *tep = fopen( tenTep, "wb" );
@@ -586,7 +580,7 @@ void encode_sgi( char *tenTep, image_data *anh ) {
       writeAttributes( tep, &attributes );
 
       // ---- image
-      write_image_data( tep, &attributes, anh );
+      write_image_data( tep, &attributes, image_data );
 
       // ---- đóng tệp
       fclose( tep );
@@ -687,7 +681,7 @@ void writeAttributes( FILE *sgi_fp, sgi_attributes *attributes ) {
 }
 
 #pragma mark ---- Write Chunk Data
-void write_image_data( FILE *sgi_fp, sgi_attributes *attributes, image_data *image_data ) {
+void write_image_data( FILE *sgi_fp, sgi_attributes *attributes, sgi_image_data *image_data ) {
 
    sgi_chunk_data chunk_data;
    chunk_data.num_chunks = attributes->height*attributes->num_channels;
@@ -792,255 +786,3 @@ void write_image_data( FILE *sgi_fp, sgi_attributes *attributes, image_data *ima
    free( chunk_data.chunk_size );
 }
 
-
-
-#pragma mark ---- Phân Tích Đuôi Tập Tin
-unsigned char phanTichDuoiTapTin( char *tenTapTin ) {
-   
-   // ---- đến cuối cùnh tên
-   while( *tenTapTin != 0x00 ) {
-      tenTapTin++;
-   }
-   
-   // ---- trở lại 3 cái
-   tenTapTin -= 3;
-   
-   // ---- xem có đuôi nào
-   unsigned char kyTu0 = *tenTapTin;
-   tenTapTin++;
-   unsigned char kyTu1 = *tenTapTin;
-   tenTapTin++;
-   unsigned char kyTu2 = *tenTapTin;
-   
-   unsigned char loaiTapTin = 0;
-   
-   if( (kyTu0 == 'p') || (kyTu0 == 'P') ) {
-      if( (kyTu1 == 'n') || (kyTu1 == 'N') ) {
-         if( (kyTu2 == 'g') || (kyTu2 == 'G') ) {
-            loaiTapTin = kPNG;
-         }
-      }
-   }
-   else if( (kyTu0 == 'r') || (kyTu0 == 'R') ) {
-      if( (kyTu1 == 'g') || (kyTu1 == 'G') ) {
-         if( (kyTu2 == 'b') || (kyTu2 == 'B') ) {
-            loaiTapTin = kSGI;
-         }
-      }
-   }
-   
-   return loaiTapTin;
-}
-
-
-#pragma mark ==== Đuôi Tập Tin
-void tenAnhPNG( char *tenAnhGoc, char *tenAnhPNG ) {
-   
-   // ---- chép tên ảnh gốc
-   while( *tenAnhGoc != 0x00 ) {
-      *tenAnhPNG = *tenAnhGoc;
-      tenAnhPNG++;
-      tenAnhGoc++;
-   }
-   
-   // ---- trở lại 3 cái
-   tenAnhPNG -= 3;
-   
-   // ---- kèm đuôi PNG
-   *tenAnhPNG = 'p';
-   tenAnhPNG++;
-   *tenAnhPNG = 'n';
-   tenAnhPNG++;
-   *tenAnhPNG = 'g';
-   tenAnhPNG++;
-   *tenAnhPNG = 0x0;
-}
-
-void tenAnhSGI( char *tenAnhGoc, char *tenAnhPCT ) {
-   
-   // ---- chép tên ảnh gốc
-   while( *tenAnhGoc != 0x00 ) {
-      *tenAnhPCT = *tenAnhGoc;
-      tenAnhPCT++;
-      tenAnhGoc++;
-   }
-   
-   // ---- trở lại 3 cái
-   tenAnhPCT -= 3;
-   
-   // ---- kèm đuôi SGI
-   *tenAnhPCT = 'r';
-   tenAnhPCT++;
-   *tenAnhPCT = 'g';
-   tenAnhPCT++;
-   *tenAnhPCT = 'b';
-   tenAnhPCT++;
-   *tenAnhPCT = 0x0;
-}
-
-
-// For test read file
-int main( int argc, char **argv ) {
-   
-   // =======
-/*   unsigned char *demKhongNen = calloc(136, 1);
-   unsigned char *demNen = calloc(136, 1);
-   unsigned int beDai = compress_rle( demKhongNen,136, demNen );
-   unsigned int chiSo = 0;
-   while( chiSo < beDai ) {
-      printf( "%02x ", demNen[chiSo] );
-      chiSo++;
-   }
-   printf( "\n" );
-   exit(0); */
-   // ========
-   
-   if( argc > 1 ) {
-      // ---- phân tích đuôi tập tin
-      unsigned char loaiTapTin = 0;
-      loaiTapTin = phanTichDuoiTapTin( argv[1] );
-      
-      if( loaiTapTin == kSGI ) {
-         printf( " SGI file\n" );
-         image_data anh_SGI = decode_sgi( argv[1] );
-         
-         // ---- tên tập tin
-         char tenTep[255];
-         tenAnh_RGBO( argv[1], tenTep );
-         printf( " Đang lưu: %s\n", tenTep );
-         
-         // ----
-         
-         
-         // ---- pha trộn các kênh
-         unsigned int beDaiDemPhaTron = anh_SGI.width*anh_SGI.height;
-         if( anh_SGI.num_channels == 3 )
-            beDaiDemPhaTron *= 3;
-         else if( anh_SGI.num_channels == 4 )
-            beDaiDemPhaTron <<= 2;
-         else {
-            printf( "No support SGI file have channels: %d\n", anh_SGI.num_channels );
-            exit(0);
-         }
-            
-         unsigned int chiSoCuoi = beDaiDemPhaTron;
-         unsigned char *demPhaTron = malloc( beDaiDemPhaTron );
-         
-         if( demPhaTron ) {
-            
-            if( anh_SGI.num_channels == 3 ) {
-               unsigned int chiSo = 0;
-               unsigned int chiSoKenh = 0;
-               while( chiSo < chiSoCuoi ) {
-                  demPhaTron[chiSo] = anh_SGI.channel_R[chiSoKenh];
-                  demPhaTron[chiSo+1] = anh_SGI.channel_G[chiSoKenh];
-                  demPhaTron[chiSo+2] = anh_SGI.channel_B[chiSoKenh];
-                  chiSo += 3;
-                  chiSoKenh++;
-               }
-               // ---- lưu tập tin PNG
-               luuAnhPNG( tenTep, demPhaTron, anh_SGI.width, anh_SGI.height, kPNG_BGR );
-            }
-            else if( anh_SGI.num_channels == 4 ) {
-               unsigned int chiSo = 0;
-               unsigned int chiSoKenh = 0;
-               while( chiSo < chiSoCuoi ) {
-                  demPhaTron[chiSo] = anh_SGI.channel_R[chiSoKenh];
-                  demPhaTron[chiSo+1] = anh_SGI.channel_G[chiSoKenh];
-                  demPhaTron[chiSo+2] = anh_SGI.channel_B[chiSoKenh];
-                  demPhaTron[chiSo+3] = 0xff;
-                  chiSo += 4;
-                  chiSoKenh++;
-               }
-               
-               // ---- lưu tập tin PNG
-               luuAnhPNG( tenTep, demPhaTron, anh_SGI.width, anh_SGI.height, kPNG_BGRO );
-            }
-            
-
-         }
-      }
-      else if( loaiTapTin == kPNG ) {
-         printf( " PNG file\n" );
-         
-         unsigned int beRong = 0;
-         unsigned int beCao = 0;
-         unsigned char canLatMau = 0;
-         unsigned char loaiPNG;
-         unsigned char *duLieuAnhPNG = docPNG( argv[1], &beRong, &beCao, &canLatMau, &loaiPNG );
-         
-         if( duLieuAnhPNG == NULL ) {
-            printf( "No support this type PNG file\n" );
-            exit(0);
-         }
-         
-         
-         image_data anhPNG;
-         anhPNG.width = beRong;
-         anhPNG.height = beCao;
-         printf( "Size %d x %d (%p)  loai %d\n", beRong, beCao, duLieuAnhPNG, loaiPNG );
-
-         // ---- create channel
-         anhPNG.num_channels = 3;
-         anhPNG.channel_R = malloc( beRong*beCao );
-         anhPNG.channel_G = malloc( beRong*beCao );
-         anhPNG.channel_B = malloc( beRong*beCao );
-         if( (anhPNG.channel_R == NULL ) || (anhPNG.channel_G == NULL)
-            || (anhPNG.channel_B == NULL) ) {
-            printf( "Problem create RGB channel for PNG image\n" );
-            exit(0);
-         }
-         
-         if( loaiPNG == kPNG_BGRO ) {
-            anhPNG.num_channels = 4;
-            anhPNG.channel_A = malloc( beRong*beCao );
-            if( anhPNG.channel_A == NULL ) {
-               printf( "Problem create A channel for PNG image\n" );
-               exit(0);
-            }
-         }
-         
-         unsigned int chiSoDuLieuAnh = 0;
-         unsigned int chiSoDuLieuAnhCuoi = beRong*beCao;
-         unsigned int chiSoKenh = 0;
-         
-         if( loaiPNG == kPNG_BGR ) {
-            chiSoDuLieuAnhCuoi *= 3;
-            while( chiSoDuLieuAnh < chiSoDuLieuAnhCuoi ) {
-               anhPNG.channel_R[chiSoKenh] = duLieuAnhPNG[chiSoDuLieuAnh];
-               anhPNG.channel_G[chiSoKenh] = duLieuAnhPNG[chiSoDuLieuAnh+1];
-               anhPNG.channel_B[chiSoKenh] = duLieuAnhPNG[chiSoDuLieuAnh+2];
-               
-               chiSoKenh++;
-               chiSoDuLieuAnh += 3;
-            }
-         }
-         else if( loaiPNG == kPNG_BGRO ) {
-            chiSoDuLieuAnhCuoi <<= 2;
-            while( chiSoDuLieuAnh < chiSoDuLieuAnhCuoi ) {
-               anhPNG.channel_A[chiSoKenh] = duLieuAnhPNG[chiSoDuLieuAnh+3];
-               anhPNG.channel_R[chiSoKenh] = duLieuAnhPNG[chiSoDuLieuAnh];
-               anhPNG.channel_G[chiSoKenh] = duLieuAnhPNG[chiSoDuLieuAnh+1];
-               anhPNG.channel_B[chiSoKenh] = duLieuAnhPNG[chiSoDuLieuAnh+2];
-               
-               chiSoKenh++;
-               chiSoDuLieuAnh += 4;
-            }
-         }
-         
-         // ---- chuẩn bị tên tập tin
-         char tenTep[255];
-         tenAnhSGI( argv[1], tenTep );
-         printf( " %s\n", tenTep );
-         
-         // ---- encode SGI image
-         encode_sgi( tenTep, &anhPNG );
-      }
-      else {
-         printf( "No support this file format\n" );
-      }
-
-   }
-   
-   return 1;
-}
