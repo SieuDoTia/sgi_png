@@ -27,6 +27,7 @@ unsigned char phanTichDuoiTapTin( char *tenTapTin ) {
    
    unsigned char loaiTapTin = 0;
    
+   // ---- PNG
    if( (kyTu0 == 'p') || (kyTu0 == 'P') ) {
       if( (kyTu1 == 'n') || (kyTu1 == 'N') ) {
          if( (kyTu2 == 'g') || (kyTu2 == 'G') ) {
@@ -34,6 +35,16 @@ unsigned char phanTichDuoiTapTin( char *tenTapTin ) {
          }
       }
    }
+   
+   // ---- SGI
+   else if( (kyTu0 == 's') || (kyTu0 == 'S') ) {
+      if( (kyTu1 == 'g') || (kyTu1 == 'G') ) {
+         if( (kyTu2 == 'i') || (kyTu2 == 'I') ) {
+            loaiTapTin = kSGI;
+         }
+      }
+   }
+ 
    else if( (kyTu0 == 'r') || (kyTu0 == 'R') ) {
       if( (kyTu1 == 'g') || (kyTu1 == 'G') ) {
          if( (kyTu2 == 'b') || (kyTu2 == 'B') ) {
@@ -81,11 +92,11 @@ void tenAnhSGI( char *tenAnhGoc, char *tenAnhSGI ) {
    tenAnhSGI -= 3;
    
    // ---- kèm đuôi SGI
-   *tenAnhSGI = 'r';
+   *tenAnhSGI = 's';
    tenAnhSGI++;
    *tenAnhSGI = 'g';
    tenAnhSGI++;
-   *tenAnhSGI = 'b';
+   *tenAnhSGI = 'i';
    tenAnhSGI++;
    *tenAnhSGI = 0x0;
 }
@@ -94,18 +105,6 @@ void tenAnhSGI( char *tenAnhGoc, char *tenAnhSGI ) {
 #pragma ==== Main
 int main( int argc, char **argv ) {
    
-   // =======
-   /*   unsigned char *demKhongNen = calloc(136, 1);
-    unsigned char *demNen = calloc(136, 1);
-    unsigned int beDai = compress_rle( demKhongNen,136, demNen );
-    unsigned int chiSo = 0;
-    while( chiSo < beDai ) {
-    printf( "%02x ", demNen[chiSo] );
-    chiSo++;
-    }
-    printf( "\n" );
-    exit(0); */
-   // ========
    
    if( argc > 1 ) {
       // ---- phân tích đuôi tập tin
@@ -247,13 +246,17 @@ int main( int argc, char **argv ) {
          encode_sgi( tenTep, &anhPNG );
       }
       else {
-         printf( "No support this file format\n" );
+         printf( "No support this file format/ Only suport .png; .sgi; or .rgb\n" );
       }
       
+   }
+   else {
+      printf( " Please type file name for convert: './sgi_png <file name>'\n" );
    }
    
    return 1;
 }
+/*
 
 #pragma mark ==== Mẫu Tên Tập Tin
 void tenAnhChoCacAnhTuDia( char *tenAnhGoc, char *tenAnhPNG ) {
@@ -272,8 +275,8 @@ void tenAnhChoCacAnhTuDia( char *tenAnhGoc, char *tenAnhPNG ) {
    *tenAnhPNG = '_';
 }
 
-/*
-// For test read file
+
+// For find and read SGI image file from IRIX format CD
 int main( int argc, char **argv ) {
 
    if( argc > 1 ) {
@@ -297,18 +300,63 @@ int main( int argc, char **argv ) {
                kyTu = fgetc( dia );
 
                if( kyTu == 0xda ) {
-                  kyTu = fgetc( dia );
+                  unsigned char nen = fgetc( dia );
                   
-                  if( kyTu == 0x01 ) {
-                     kyTu = fgetc( dia );
+                  if( (nen == 0x00) || (nen == 0x01) ) {
+                     unsigned char loaiDuLieu = fgetc( dia );
 
-                     if( kyTu == 0x01 ) {
+                     if( (loaiDuLieu == 0x01) || (loaiDuLieu == 0x02) ) {
+                        // ---- giữ địa chỉ đầu tập tin
                         unsigned int diaChiTapTin = ftell( dia ) - 4;
-                        char tenTapTin[255];
-                        sprintf( tenTapTin, "%s_%03d.png", tenAnhPNG, soLuongTapTin );
-                        printf( "%d  %d (%08x) %s\n", soLuongTapTin, diaChiTapTin, diaChiTapTin, tenTapTin );
                         
-                        soLuongTapTin++;
+                        // ---- chiều
+                        fgetc( dia );
+                        unsigned char chieu = fgetc( dia );
+                        
+                        if( (chieu == 3) || (chieu == 1) ) {
+                           unsigned short beRong = (fgetc( dia ) << 8) | fgetc( dia );
+                           unsigned short beCao = (fgetc( dia ) << 8) | fgetc( dia );
+                           unsigned short soLuongKenh = (fgetc( dia ) << 8) | fgetc( dia );
+                           
+                           if( soLuongKenh < 5 ) {
+                              
+                              // ---- tên tập tin
+                              fseek( dia, 12, SEEK_CUR );
+                              char tenTapTin[80];
+                              unsigned short diaChi = 0;
+                              while( diaChi < 80 ) {
+                                 tenTapTin[diaChi] = fgetc( dia );
+                                 diaChi++;
+                              }
+                              
+                              // ---- tạo tên cho tập tin lưu lại 
+                              char tenTapTinLuuLai[255];
+                              sprintf( tenTapTinLuuLai, "%s_%03d.png", tenAnhPNG, soLuongTapTin );
+                              
+                              // ---- tìm chiều dài tập tin
+                              unsigned int chieuDaiTapTin = 512;
+                              if( nen ) {
+                                 // ---- địa chỉ thần phần cuối
+                                 fseek( dia, 408 + (beCao << 2) - 4, SEEK_CUR );
+                                 unsigned int diaChiThanPhanCuoi = (fgetc( dia ) << 24) | (fgetc( dia ) << 16) | (fgetc( dia ) << 8) | fgetc( dia );
+                                 // ---- bề dài thành phần cuối
+                                 fseek( dia, (beCao << 2) - 4, SEEK_CUR );
+                                 unsigned int beDaiThanPhanCuoi = (fgetc( dia ) << 24) | (fgetc( dia ) << 16) | (fgetc( dia ) << 8) | fgetc( dia );
+                                 
+                                 chieuDaiTapTin += diaChiThanPhanCuoi + beDaiThanPhanCuoi;
+                              }
+                              else {
+                                 chieuDaiTapTin += beRong*beCao*loaiDuLieu*soLuongKenh;
+                              }
+                              
+                              if( loaiDuLieu == 1 )
+                                 printf( "%3d  %d (0x%08x) compress %d  8 bit  dim %d  %4d x %4d  chan %d  size %8d %s\n", soLuongTapTin, diaChiTapTin, diaChiTapTin, nen, chieu, beRong, beCao, soLuongKenh, chieuDaiTapTin, tenTapTin );
+                              else
+                                 printf( "%3d  %d (0x%08x) compress %d 16 bit  dim %d  %4d x %4d  chan %d  size %8d %s\n", soLuongTapTin, diaChiTapTin, diaChiTapTin, nen, chieu, beRong, beCao, soLuongKenh, chieuDaiTapTin, tenTapTin );
+                              
+                              soLuongTapTin++;
+                           }
+                        }
                      }
                   }
                }
